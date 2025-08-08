@@ -17,4 +17,5 @@ class WorldHealthData:
 
     def get_all_data(self, filepath: str = "data/world_health_indicators.csv"):
         """ Returns the pandas dataframe with all the data """
-        return pd.read_csv(filepath)
+        return pd.read_csv(filepath, names=["Country", "Date", "Life Expectancy", "Health Expenditure", "Mortality Rate", 
+                                            "Polio Immunization", "Physician Count"], index_col=["Country", "Date"])
