@@ -9,8 +9,8 @@ from world_health_data import WorldHealthData
 
 app = Dash()
 db = WorldHealthData()
-db.load_and_save_data()
 data = db.get_all_data()
+
 global CURRENT_DATE_RANGE, CURRENT_INDICATOR, CURRENT_COUNTRY
 CURRENT_INDICATOR = "Life Expectancy"
 CURRENT_COUNTRY = "United States"
