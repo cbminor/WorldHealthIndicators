@@ -54,7 +54,7 @@ for feature in geojson_data["features"]:
     feature["properties"]["color"] = color_scale(indicator_value=feature["properties"]["value"], min_val=min_indicator, max_val=max_indicator)
 layer = pdk.Layer("GeoJsonLayer", geojson_data, stroked=True, filled=True, get_fill_color="properties.color", get_line_color=[0, 0, 0], pickable=True)
 view_state = pdk.ViewState(latitude=20,longitude=0,zoom=1)
-st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, map_style="mapbox://styles/mapbox/light-v9", tooltip={"text": "{name}\n" + selected_indicator.title() + ": {value}"}))
+st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, map_style="mapbox://styles/mapbox/light-v9", tooltip={"text": "{name}\n" + selected_indicator.title() + ": {value}"})) # ignore: type
 
 # Create the columns
 col1, col2 = st.columns(2)

@@ -1,10 +1,11 @@
 import seaborn as sns
 import numpy as np
-import pandas as pd
 from world_health_data import WorldHealthData
-from shiny import App, reactive, render, ui
+from shiny import reactive
 import shiny.express as sx
+from shiny.express import input, ui, render
 import plotly.express as px
+from shinywidgets import render_plotly
 
 # Constants
 INDICATORS = ["Life Expectancy", "Health Expenditure", "Mortality Rate", "Polio Immunization", "Physician Count"]
@@ -14,101 +15,59 @@ db = WorldHealthData()
 data = db.get_all_data()
 data.reset_index(inplace=True)
 
-# App UI
-app_ui = ui.page_fluid(
-    ui.layout_columns(
-    ui.input_select("indicator", label="Select an Indicator", choices=INDICATORS, selected="Life Expectancy"),
+# --- UI ---
+sx.ui.page_opts(full_width=False)
+
+sx.ui.h1("World Health Indicators Dashboard", style="margin-top: 1rem; text-align: center;")
+
+
+with ui.layout_columns(fill=False, style="text-align: center;"):
+    ui.input_select("indicator", label="Select an Indicator", choices=INDICATORS, selected="Life Expectancy")
     ui.input_slider("years", label="Years", max=int(np.max(data.Date)), min=int(np.min(data.Date)), value=[2000, 2020], sep="")
-    ),
-    ui.output_ui("choropleth_card"),
-    ui.layout_columns(
-        ui.card(
-            ui.output_ui("summary_card"),
-            full_screen=True
-        ),
-        ui.card(
-            ui.card_header("Select a Country"),
-            ui.input_select("country", label="", choices=sorted(data.Country.unique().tolist())),
-            full_screen=True,
-        ),
-        ui.card(
-            ui.output_ui("timeseries_card"),
-            full_screen=True,
-        ),
-    )
-)
 
-# Server logic
-def server(input, output, session):
-
-    @reactive.Calc
-    def filtered_data():
-        # Filter data by year range from slider
-        years = input.years()
-        df = data[(data.Date >= years[0]) & (data.Date <= years[1])]
-        return df
-
-    @output
-    @render.ui
-    def choropleth_card():
-        # Reactive card with header and plot
-        return ui.card(
-            ui.output_ui("choropleth_header"),
-            ui.output_plot("choropleth_map"),
-            full_screen=True,
-        )
-
-    @output
-    @render.ui
-    def choropleth_header():
-        # Header depends on indicator
-        return ui.card_header(f"{input.indicator()} Choropleth Map")
-
-    @output
-    @render.plot
+with ui.card(full_screen=True, height="500px"):
+    ui.card_header("Choropleth Map")
+    
+    @render_plotly
     def choropleth_map():
-        # TODO: This isn't working. Fix. 
-        df = filtered_data()
+        indicator = input.indicator()
+        filt_data = filtered_df()[["CountryId", indicator]].groupby("CountryId").mean().reset_index()
         fig = px.choropleth(
-            df,
+            filt_data,
             locations="CountryId",
             color=input.indicator(),
             color_continuous_scale="Viridis",
-            title=f"{input.indicator()} Choropleth"
         )
-        return 
-        return fig
-    
-
-    @render.data_frame
-    def summary_grid():
-        # Card with header and data grid
-        return render.DataGrid(filtered_data())
-    
-    @output
-    @render.ui
-    def summary_card():
-        return ui.TagList(
-            ui.card_header(f"{input.indicator()} Summary Table"),
-            ui.output_data_frame("summary_grid")
-        )
-
-    @output
-    @render.ui
-    def timeseries_card():
-        # Card with header and plot for time series
-        return ui.TagList(
-            ui.card_header(f"{input.indicator()} Time Series for {input.country()}"),
-            ui.output_plot("time_series_plot")
-        )
-
-    @output
-    @render.plot
-    def time_series_plot():
-        df = filtered_data()
-        country_data = df[df.Country == input.country()]
-        sns.set_theme(style="whitegrid")
-        fig = sns.lineplot(data=country_data, x="Date", y=input.indicator()).get_figure()
         return fig
 
-app = App(app_ui, server)
+with ui.layout_columns(fill=True):
+    with ui.card(full_screen=True):
+        ui.card_header("Data Summary")
+
+        @render.data_frame
+        def summary_table():
+            indicator = input.indicator()
+            table_data = filtered_df()[["Country", "Date", indicator]]
+            table_data = table_data.pivot(columns="Country", index="Date", values=indicator)
+            data_summary = table_data.describe().transpose().apply(lambda x: np.round(x, decimals=2))
+            data_summary = data_summary[["min", "max", "mean", "std"]].rename(columns={"min": "Minimum", 
+                                                                                       "max": "Maximum", 
+                                                                                       "mean": "Average", 
+                                                                                       "std": "Standard Deviation"}).reset_index()
+            return render.DataGrid(data_summary)
+        
+    with ui.card(full_screen=True):
+        ui.card_header("Time Series")
+        ui.input_select("country", label="Select a Country", choices=data.Country.unique().tolist())
+
+        @render.plot
+        def time_series():
+            time_series_data = filtered_df()
+            time_series_data = time_series_data[time_series_data[input.indicator()].notna()]
+            time_series_data = time_series_data[time_series_data["Country"] == input.country()]
+            return sns.lineplot(data=time_series_data, x="Date", y=input.indicator())
+
+# --- Server Logic ---
+@reactive.calc
+def filtered_df():
+    return data[(data.Date >= input.years()[0]) & (data.Date <= input.years()[1])]
